@@ -1,7 +1,22 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from datetime import datetime
 
+from sqlalchemy.orm import Session
+
+import models
+from database import SessionLocal, engine
+
+models.Base.metadata.create_all(bind=engine)
+
 app = FastAPI()
+
+# Dependency
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
 restr_dict = {
     "The Cowfish Sushi Burger Bar":   "Mon-Sun 11:00 am - 10 pm", #timestart 0
@@ -128,11 +143,12 @@ def is_open(given_day, given_time, restr_datetime):
             print('Group ', count, ' : ', weekday_grp)
             split_by_week_ranges = weekday_grp.split("-")
             
+
             # pattern: day-day
             if len(split_by_week_ranges) > 1:
-
-                day_separated = split_by_week_ranges[1].split(" ", 1)
                 
+                day_separated = split_by_week_ranges[1].split(" ", 1)
+
                 if given_day >= dotw[split_by_week_ranges[0]] and given_day <= dotw[day_separated[0]]:
                     print('it is between: ', split_by_week_ranges[0], 'and ', day_separated[0])
                     print('it is between: ', dotw[split_by_week_ranges[0]], 'and ', dotw[day_separated[0]])
@@ -171,47 +187,60 @@ def is_open(given_day, given_time, restr_datetime):
 
             # pattern: day, day-day?
             else:
+                day_separated = split_by_week_ranges[0].split(" ", 1)
                 if given_day == dotw[day_separated[0]]:
                     date_found = True
-                print('else statement reached, the day is', day_separated[0], ' or ', dotw[day_separated[0]])
-                print('day + 1', dotw[day_separated[0]] + 1)
-                print('and the current given day is: ', given_day)
-                day_separated = split_by_week_ranges[0].split(" ", 1)
+                if len(day_separated) > 1:
+                    print('else statement reached, the day is', day_separated[0], ' or ', dotw[day_separated[0]])
+                    print('day + 1', dotw[day_separated[0]] + 1)
+                    print('and the current given day is: ', given_day)
+                    day_separated = split_by_week_ranges[0].split(" ", 1)
 
-                if dotw[day_separated[0]] == 6:
-                    next_day_num = 0
-                else:
-                    next_day_num = dotw[day_separated[0]] + 1
-
-                print('next_day_num: ', next_day_num)
-                if date_found or given_day == next_day_num:
-                    print("it is equal to: ", day_separated[0], ' or ', dotw[day_separated[0]], 'in number format')
-                    if len(day_separated[1].split(":")) > 1:
-                        time_start = datetime.strptime(day_separated[1], "%I:%M %p")
-                        print('timestart: ', time_start)
+                    if dotw[day_separated[0]] == 6:
+                        next_day_num = 0
                     else:
-                        time_start = datetime.strptime(day_separated[1], "%I %p")
-                        print('timestart: ', time_start)
-                    if time_start > time_end:
-                        print(time_start, ' was greater2 than ', time_end)
-                        print('next_day_num: ', next_day_num)
+                        next_day_num = dotw[day_separated[0]] + 1
 
-                        if given_day == next_day_num:
-                            temp_time_start = time_start.replace(hour=0, minute=0)
-                            print('The new temp start time: ', temp_time_start, ' The end time: ', time_end, ' and given time is: ', given_time)
-                            if given_time >= temp_time_start and given_time <= time_end:
-                                return True
+                    print('next_day_num: ', next_day_num)
+                    if date_found or given_day == next_day_num:
+                        print("it is equal to: ", day_separated[0], ' or ', dotw[day_separated[0]], 'in number format')
+                        if len(day_separated[1].split(":")) > 1:
+                            time_start = datetime.strptime(day_separated[1], "%I:%M %p")
+                            print('timestart: ', time_start)
                         else:
-                            time_end = time_end.replace(hour=23, minute=59)
-                            print('new time end: ', time_end)
-                    if given_time >= time_start and given_time <= time_end:
-                        return True
+                            time_start = datetime.strptime(day_separated[1], "%I %p")
+                            print('timestart: ', time_start)
+                        if time_start > time_end:
+                            print(time_start, ' was greater2 than ', time_end)
+                            print('next_day_num: ', next_day_num)
+
+                            if given_day == next_day_num:
+                                temp_time_start = time_start.replace(hour=0, minute=0)
+                                print('The new temp start time: ', temp_time_start, ' The end time: ', time_end, ' and given time is: ', given_time)
+                                if given_time >= temp_time_start and given_time <= time_end:
+                                    return True
+                            else:
+                                time_end = time_end.replace(hour=23, minute=59)
+                                print('new time end: ', time_end)
+                        if given_time >= time_start and given_time <= time_end:
+                            return True
                   
     return False
 
 
+
 @app.get("/{url_date}")
-def find_restaurants(url_date):
+def find_restaurants(url_date, db: Session = Depends(get_db)):
+    #db = get_db()
+    db_restaurant_list = db.query(models.Restaurant).all()
+    #def read_user(user_id: int, db: Session = Depends(get_db)):
+    #db.query(models.Restaurant).all()
+    #db_user = crud.get_user(db, user_id=user_id)
+    #models.
+    #db_restaurants = models.Restaurant.db.query().all()
+    if db_restaurant_list is None:
+        raise HTTPException(status_code=404, detail="No restaurants found.")
+
     #date_given = '2021-01-18T091508'
     #restr_tuples = rest_dict.items()
     
@@ -224,12 +253,19 @@ def find_restaurants(url_date):
     url_time_dtobj = date_converted.strftime('%H%M')
     url_time = datetime.strptime(url_time_dtobj, '%H%M')
 
+    for restaurant_db in db_restaurant_list:
+        print('\n\n\n')
+        print(restaurant_db.restaurant)
+        print(restaurant_db.hours)
+        if is_open(url_day, url_time, restaurant_db.hours):
+            restaurants_open.append(restaurant_db.restaurant)
+    # for key, value in restr_dict.items():
+    #     print('\n\n\n\n')
+    #     print(key)
+    #     if is_open(url_day, url_time, value):
+    #         restaurants_open.append(key)
+    #print('database: ', db_restaurants.restaurant)
     print('time given: ', url_time)
     print('given day:', date_converted.strftime('%A'))
     print('given day:', url_day)
-    for key, value in restr_dict.items():
-        print('\n\n\n\n')
-        print(key)
-        if is_open(url_day, url_time, value):
-            restaurants_open.append(key)
     return restaurants_open
