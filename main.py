@@ -11,7 +11,28 @@ import models
 # Creates all db tables
 models.Base.metadata.create_all(bind=engine)
 
-app = FastAPI()
+description = """
+Directions:
+
+Insert the date into the API Endpoint field of the url following the guidelines of ISO 8601.
+
+Ex.
+
+for the datetime of January 24th, 2022 at 10:57:00 am you would input:
+
+Example.com/2022-01-24T105700
+"""
+
+app = FastAPI(
+    title="Open Restaurants API",
+    description=description,
+    version="0.0.1",
+    terms_of_service="https://formswift.com/terms-of-service#documentPreview",
+    contact={
+        "name": "Tyler Hembrock",
+        "email": "thembro01@gmail.com",
+    },
+)
 
 # Dependency
 def get_db():
