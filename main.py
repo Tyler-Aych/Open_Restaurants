@@ -1,11 +1,14 @@
-from fastapi import FastAPI, Depends
+# external modules
+from fastapi import FastAPI, Depends, HTTPException
+from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
 from datetime import datetime
 
-from sqlalchemy.orm import Session
-
-import models
+# internal modules
 from database import SessionLocal, engine
+import models
 
+# Creates all db tables
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
@@ -18,25 +21,7 @@ def get_db():
     finally:
         db.close()
 
-restr_dict = {
-    "The Cowfish Sushi Burger Bar":   "Mon-Sun 11:00 am - 10 pm", #timestart 0
-    "Morgan St Food Hall": "Mon-Sun 11 am - 9:30 pm", #timestart 0
-    "Beasley's Chicken + Honey":   "Mon-Fri, Sat 11 am - 12 pm / Sun 11 am - 10 pm",
-    "Garland": "Tues-Fri, Sun 11:30 am - 2 am / Sat 5:30 pm - 11 pm",
-    "Crawford and Son" :   "Mon-Sun 11:30 am - 10 pm", #timstart 0
-    "Death and Taxes": "Mon-Sun 5 pm - 10 pm", #timestart 0
-    "Caffe Luna":  "Mon-Sun 11 am - 12 am", #timestart 0
-    "Bida Manda":  "Mon-Thu, Sun 11:30 am - 10 pm / Fri-Sat 11:30 am - 11 pm",
-    "The Cheesecake Factory":  "Mon-Thu 11 am - 11 pm / Fri-Sat 11 am - 12:30 am / Sun 10 am - 11 pm",
-    "Tupelo Honey":   "Mon-Thu, Sun 9 am - 10 pm / Fri-Sat 9 am - 11 pm",
-    "Player's Retreat":    "Mon-Thu, Sun 11:30 am - 9:30 pm / Fri-Sat 11:30 am - 10 pm",
-    "Glenwood Grill":  "Mon-Sat 11 am - 11 pm / Sun 11 am - 10 pm",
-    "Neomonde":   "Mon-Thu 11:30 am - 10 pm / Fri-Sun 11:30 am - 11 pm" #timestart 0
-}
-
-#handle situations like thurs-tues
-#sun to monday
-
+# converts abbr days into integers
 dotw = {
     "Mon": 0,
     "Tues": 1,
@@ -47,81 +32,23 @@ dotw = {
     "Sun": 6
 }
 
-#   "Page Road Grill", Mon-Sun 11 am - 11 pm
+# Converts datetime string api endpoint into a day of the week represented by an integer 0-6, Mon-Sun
+def convert_to_day(date_string):
+    date_converted = datetime.strptime(date_string, "%Y-%m-%dT%H%M%S")
+    
+    return datetime.weekday(date_converted)
 
-# "Mon-Sun 11 am", "11 pm"
+# Converts datetime string api endpoint into a time
+def convert_to_time(date_string):
+    date_converted = datetime.strptime(date_string, "%Y-%m-%dT%H%M%S")
+    url_time_dtobj = date_converted.strftime('%H%M')
+    
+    return datetime.strptime(url_time_dtobj, '%H%M')
 
-# "Mon", "Sun 11 am", "11 pm"
-
-
-# "Mon-Fri, Sat 11 am - 12 pm / Sun 11 am - 10 pm"
-
-# "Mon-Fri, Sat 11 am - 12 pm" "Sun 11 am - 10 pm"
-
-# "Mon-Fri, Sat 11 am" "12 pm" "Sun 11 am" "10 pm"
-
-# "Mon-Fri" "Sat 11 am" "12 pm" "Sun 11 am" "10 pm"
-
-# "Mon" "Fri" "Sat 11 am" "12 pm" "Sun 11 am" "10 pm"
-
-#   "Mez Mexican", Mon-Fri 10:30 am - 9:30 pm / Sat-Sun 10 am - 9:30 pm
-#   "Saltbox", Mon-Sun 11:30 am - 10:30 pm
-#   "El Rodeo",   Mon-Sun 11 am - 10:30 pm
-#   "Provence" ,   Mon-Thu, Sun 11:30 am - 9 pm / Fri-Sat 11:30 am - 10 pm
-#   "Bonchon", Mon-Wed 5 pm - 12:30 am / Thu-Fri 5 pm - 1:30 am / Sat 3 pm - 1:30 am / Sun 3 pm - 11:30 pm
-#   "Tazza Kitchen", Mon-Sun 11 am - 10 pm
-#   "Mandolin",    Mon-Thu 11 am - 10 pm / Fri-Sat 10 am - 10:30 pm / Sun 11 am - 11 pm
-#   "Mami Nora's", Mon-Sat 11 am - 10 pm / Sun 12 pm - 10 pm
-#   "Gravy",   Mon-Sun 11 am - 10 pm
-#   "Taverna Agora",   Mon-Thu, Sun 11 am - 10 pm / Fri-Sat 11 am - 12 am
-#   "Char Grill",  Mon-Fri 11:30 am - 10 pm / Sat-Sun 7 am - 3 pm
-#   "Seoul 116",  Mon-Sun 11 am - 4 am
-#   "Whiskey Kitchen", Mon-Thu, Sun 11:30 am - 10 pm / Fri-Sat 11:30 am - 11 pm
-#   "Sitti",  Mon-Sun 11:30 am - 9:30 pm
-#   "Stanbury",    Mon-Sun 11 am - 12 am
-#   "Yard House",  Mon-Sun 11:30 am - 10 pm
-#   "David's Dumpling",    Mon-Sat 11:30 am - 10 pm / Sun 5:30 pm - 10 pm
-#   "Gringo a Gogo",   Mon-Sun 11 am - 11 pm
-#   "Centro",  Mon, Wed-Sun 11 am - 10 pm
-#   "Brewery Bhavana", Mon-Sun 11 am - 10:30 pm
-#   "Dashi",   Mon-Fri 10 am - 9:30 pm / Sat-Sun 9:30 am - 9:30 pm
-#   "42nd Street Oyster Bar",  Mon-Sat 11 am - 12 am / Sun 12 pm - 2 am
-#   "Top of the Hill", Mon-Fri 11 am - 9 pm / Sat 5 pm - 9 pm
-#   "Jose and Sons",   Mon-Fri 11:30 am - 10 pm / Sat 5:30 pm - 10 pm
-#   "Oakleaf", Mon-Thu, Sun 11 am - 10 pm / Fri-Sat 11 am - 11 pm
-#   "Second Empire",   Mon-Fri 11 am - 10 pm / Sat-Sun 5 pm - 10 pm
-
-#first split(" / ")
-  #this will give each day and time pair
-#next split(" - ")
-  # this will split the - between times only
-#next split(", ")
-  # this will split up multiple weekday groupings
-#then split("-")
-  # this separates week ranges
-
-# "Mon", "Sun 11 am", "11 pm"
-
-#for this issue you can use the second if statement to capture the diff
-#"Mon, Wed-Sun 11 am - 10 pm"
-#"Mon-Fri, Sat 11 am - 12 pm / Sun 11 am - 10 pm",
-
-#"Mon-Fri, Sat 11 am - 12 pm" "Sun 11 am - 10 pm"
-
-#"Mon-Fri, Sat 11 am" 
-#"12 pm" 
-#"Sun 11 am" 
-#"10 pm"
-
-# "Mon" "Fri" "Sat 11 am" "12 pm" "Sun 11 am" "10 pm"
-
-#"Mon, Wed-Sun 11 am - 10 pm"
-#"Mon-Fri, Sat 11 am - 12 pm / Sun 11 am - 10 pm",
-
+# Checks if any restaurants are open during the given datetime
 def is_open(given_day, given_time, restr_datetime):
     
     split_by_dayandtime = restr_datetime.split(" / ")
-    date_found = False
     time_start = 0
     next_day_num = 0
 
@@ -133,14 +60,11 @@ def is_open(given_day, given_time, restr_datetime):
 
         if len(split_by_times[1].split(":")) > 1:
             time_end = datetime.strptime(split_by_times[1], "%I:%M %p")
-            print('time end: ', time_end)
         else:
             time_end = datetime.strptime(split_by_times[1], "%I %p")
-            print('time end: ', time_end)
         
         #if there is a day, day
         for count, weekday_grp in enumerate(split_by_weekday_groups):
-            print('Group ', count, ' : ', weekday_grp)
             split_by_week_ranges = weekday_grp.split("-")
             
 
@@ -150,38 +74,26 @@ def is_open(given_day, given_time, restr_datetime):
                 day_separated = split_by_week_ranges[1].split(" ", 1)
 
                 if given_day >= dotw[split_by_week_ranges[0]] and given_day <= dotw[day_separated[0]]:
-                    print('it is between: ', split_by_week_ranges[0], 'and ', day_separated[0])
-                    print('it is between: ', dotw[split_by_week_ranges[0]], 'and ', dotw[day_separated[0]])
-                    print('split_by_week_ranges[1]: ', split_by_week_ranges[1])
-                    print('before separation of space: ', split_by_week_ranges[1])
-                    print('day separated[0]: ', day_separated[0])
-                    print('dotw[split_by_week_ranges[0]]: ', dotw[split_by_week_ranges[0]])
                     date_found = True
 
                 # check the time and make sure to check if it goes into the next day
                 if len(day_separated) > 1:
                     if len(day_separated[1].split(":")) > 1:
                         time_start = datetime.strptime(day_separated[1], "%I:%M %p")
-                        print('time start0: ', time_start)
                     else:
                         time_start = datetime.strptime(day_separated[1], "%I %p")
-                        print('time start1: ', time_start)
                     if time_start > time_end:
                         # check if the url_datetime is actually the next day
-                        print(time_start, ' was greater than ', time_end)
                         if dotw[day_separated[0]] == 6:
                             next_day_num = 0
                         else:
                             next_day_num = dotw[day_separated[0]] + 1
-                        print('next_day_num: ', next_day_num)
                         if given_day == next_day_num:
                             temp_time_start = time_start.replace(hour=0, minute=0)
-                            print('The new temp start time: ', temp_time_start, ' The end time: ', time_end, ' and given time is: ', given_time)
                             if given_time >= temp_time_start and given_time <= time_end:
                                 return True
                         else:
                             time_end = time_end.replace(hour=23, minute=59)
-                            print('new time end: ', time_end)
                     if date_found and given_time >= time_start and given_time <= time_end:
                         return True
 
@@ -191,9 +103,6 @@ def is_open(given_day, given_time, restr_datetime):
                 if given_day == dotw[day_separated[0]]:
                     date_found = True
                 if len(day_separated) > 1:
-                    print('else statement reached, the day is', day_separated[0], ' or ', dotw[day_separated[0]])
-                    print('day + 1', dotw[day_separated[0]] + 1)
-                    print('and the current given day is: ', given_day)
                     day_separated = split_by_week_ranges[0].split(" ", 1)
 
                     if dotw[day_separated[0]] == 6:
@@ -201,71 +110,377 @@ def is_open(given_day, given_time, restr_datetime):
                     else:
                         next_day_num = dotw[day_separated[0]] + 1
 
-                    print('next_day_num: ', next_day_num)
                     if date_found or given_day == next_day_num:
-                        print("it is equal to: ", day_separated[0], ' or ', dotw[day_separated[0]], 'in number format')
                         if len(day_separated[1].split(":")) > 1:
                             time_start = datetime.strptime(day_separated[1], "%I:%M %p")
-                            print('timestart: ', time_start)
                         else:
                             time_start = datetime.strptime(day_separated[1], "%I %p")
-                            print('timestart: ', time_start)
                         if time_start > time_end:
-                            print(time_start, ' was greater2 than ', time_end)
-                            print('next_day_num: ', next_day_num)
-
                             if given_day == next_day_num:
                                 temp_time_start = time_start.replace(hour=0, minute=0)
-                                print('The new temp start time: ', temp_time_start, ' The end time: ', time_end, ' and given time is: ', given_time)
                                 if given_time >= temp_time_start and given_time <= time_end:
                                     return True
                             else:
                                 time_end = time_end.replace(hour=23, minute=59)
-                                print('new time end: ', time_end)
                         if given_time >= time_start and given_time <= time_end:
                             return True
                   
     return False
 
 
-
+# The main function since our api has one function
 @app.get("/{url_date}")
 def find_restaurants(url_date, db: Session = Depends(get_db)):
-    #db = get_db()
+    
+    restaurants_open = []
+    
+    try:
+        url_day = convert_to_day(url_date)
+        url_time = convert_to_time(url_date)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Your date does not follow the format: YYYY-MM-DDTHHMMSS")
+
     db_restaurant_list = db.query(models.Restaurant).all()
-    #def read_user(user_id: int, db: Session = Depends(get_db)):
-    #db.query(models.Restaurant).all()
-    #db_user = crud.get_user(db, user_id=user_id)
-    #models.
-    #db_restaurants = models.Restaurant.db.query().all()
     if db_restaurant_list is None:
         raise HTTPException(status_code=404, detail="No restaurants found.")
 
-    #date_given = '2021-01-18T091508'
-    #restr_tuples = rest_dict.items()
-    
-    #This will take the inputted date from the api endpoint and convert it to a datetime
-    date_converted = datetime.strptime(url_date, "%Y-%m-%dT%H%M%S")
-    restaurants_open = []
-
-    #This will convert the date from the url into a day of the week represented by an integer 0-6, Mon-Sun
-    url_day = datetime.weekday(date_converted)
-    url_time_dtobj = date_converted.strftime('%H%M')
-    url_time = datetime.strptime(url_time_dtobj, '%H%M')
-
     for restaurant_db in db_restaurant_list:
-        print('\n\n\n')
-        print(restaurant_db.restaurant)
-        print(restaurant_db.hours)
         if is_open(url_day, url_time, restaurant_db.hours):
             restaurants_open.append(restaurant_db.restaurant)
-    # for key, value in restr_dict.items():
-    #     print('\n\n\n\n')
-    #     print(key)
-    #     if is_open(url_day, url_time, value):
-    #         restaurants_open.append(key)
-    #print('database: ', db_restaurants.restaurant)
-    print('time given: ', url_time)
-    print('given day:', date_converted.strftime('%A'))
-    print('given day:', url_day)
     return restaurants_open
+
+
+
+#########################################################################################################
+##                                                                                                     ##
+##                                                                                                     ##
+##                                           Unit Test Section                                         ##                                           
+##                                                                                                     ##
+##                                                                                                     ##
+#########################################################################################################
+
+#command: python -m pytest main.py
+
+client = TestClient(app)
+
+
+def test_wrong_date_format():
+    response = client.get("/2022-01-24")
+    assert response.status_code == 400
+
+def test_correct_date_format():
+    response = client.get("/2022-01-20T101523")
+    assert response.status_code == 200
+
+def test_correct_date_without_seconds():
+    response = client.get("/2022-01-20T1015")
+    assert response.status_code == 200
+
+def test_after_midnight():
+    response = client.get("/2022-01-24T013511")
+    assert response.status_code == 200
+    assert response.json() == ["Seoul 116","42nd Street Oyster Bar"]
+
+def test_one_day_one_time():
+    rest_hours = 'Mon 11 am - 12 pm'
+
+    #lower bound (Mon 11:01 am)
+    user_date = '2022-01-24T110100'
+    day = convert_to_day(user_date)
+    time = convert_to_time(user_date)
+    assert is_open(day, time, rest_hours) == True
+
+    #beyond lower bound (Mon 10:59 am)
+    user_date = '2022-01-24T105900'
+    day = convert_to_day(user_date)
+    time = convert_to_time(user_date)
+    assert is_open(day, time, rest_hours) == False
+
+    #upper bound (Mon 11:59 am)
+    user_date = '2022-01-24T115900'
+    day = convert_to_day(user_date)
+    time = convert_to_time(user_date)
+    assert is_open(day, time, rest_hours) == True
+
+    #beyond upper bound (Mon 12:01 pm)
+    user_date = '2022-01-24T120100'
+    day = convert_to_day(user_date)
+    time = convert_to_time(user_date)
+    assert is_open(day, time, rest_hours) == False
+
+def test_one_day_range_one_time():
+    rest_hours = 'Mon-Wed 11 am - 12 pm'
+
+    ## Monday
+    #lower bound (Mon 11:01 am)
+    user_date = '2022-01-24T110100'
+    day = convert_to_day(user_date)
+    time = convert_to_time(user_date)
+    assert is_open(day, time, rest_hours) == True
+
+    #beyond lower bound (Mon 10:59 am)
+    user_date = '2022-01-24T105900'
+    day = convert_to_day(user_date)
+    time = convert_to_time(user_date)
+    assert is_open(day, time, rest_hours) == False
+
+    #upper bound (Mon 11:59 am)
+    user_date = '2022-01-24T115900'
+    day = convert_to_day(user_date)
+    time = convert_to_time(user_date)
+    assert is_open(day, time, rest_hours) == True
+
+    #beyond upper bound (Mon 12:01 pm)
+    user_date = '2022-01-24T120100'
+    day = convert_to_day(user_date)
+    time = convert_to_time(user_date)
+    assert is_open(day, time, rest_hours) == False
+
+
+    ## Tuesday
+    #lower bound (Tues 11:01 am)
+    user_date = '2022-01-25T110100'
+    day = convert_to_day(user_date)
+    time = convert_to_time(user_date)
+    assert is_open(day, time, rest_hours) == True
+
+    #beyond lower bound (Tues 10:59 am)
+    user_date = '2022-01-25T105900'
+    day = convert_to_day(user_date)
+    time = convert_to_time(user_date)
+    assert is_open(day, time, rest_hours) == False
+
+    #middle day upper bound (Tues 11:59 am)
+    user_date = '2022-01-25T115900'
+    day = convert_to_day(user_date)
+    time = convert_to_time(user_date)
+    assert is_open(day, time, rest_hours) == True
+
+    #middle day beyond upper bound (Tues 12:01 pm)
+    user_date = '2022-01-25T120100'
+    day = convert_to_day(user_date)
+    time = convert_to_time(user_date)
+    assert is_open(day, time, rest_hours) == False
+
+
+    ## Wednesday
+    #lower bound (Wed 11:01 am)
+    user_date = '2022-01-26T110100'
+    day = convert_to_day(user_date)
+    time = convert_to_time(user_date)
+    assert is_open(day, time, rest_hours) == True
+
+    #beyond lower bound (Wed 10:59 am)
+    user_date = '2022-01-26T105900'
+    day = convert_to_day(user_date)
+    time = convert_to_time(user_date)
+    assert is_open(day, time, rest_hours) == False
+
+    #upper bound (Wed 11:59 am)
+    user_date = '2022-01-26T115900'
+    day = convert_to_day(user_date)
+    time = convert_to_time(user_date)
+    assert is_open(day, time, rest_hours) == True
+
+    #beyond upper bound (Wed 12:01 pm)
+    user_date = '2022-01-26T120100'
+    day = convert_to_day(user_date)
+    time = convert_to_time(user_date)
+    assert is_open(day, time, rest_hours) == False
+
+def test_two_days_one_time():
+    rest_hours = 'Mon, Wed 11 am - 12 pm'
+
+    ## Monday
+    #lower bound (Mon 11:01 am)
+    user_date = '2022-01-24T110100'
+    day = convert_to_day(user_date)
+    time = convert_to_time(user_date)
+    assert is_open(day, time, rest_hours) == True
+
+    #beyond lower bound (Mon 10:59 am)
+    user_date = '2022-01-24T105900'
+    day = convert_to_day(user_date)
+    time = convert_to_time(user_date)
+    assert is_open(day, time, rest_hours) == False
+
+    #upper bound (Mon 11:59 am)
+    user_date = '2022-01-24T115900'
+    day = convert_to_day(user_date)
+    time = convert_to_time(user_date)
+    assert is_open(day, time, rest_hours) == True
+
+    #beyond upper bound (Mon 12:01 pm)
+    user_date = '2022-01-24T120100'
+    day = convert_to_day(user_date)
+    time = convert_to_time(user_date)
+    assert is_open(day, time, rest_hours) == False
+
+
+    ## Tuesday
+    #within time bound (Tues 11:01 am)
+    user_date = '2022-01-25T110100'
+    day = convert_to_day(user_date)
+    time = convert_to_time(user_date)
+    assert is_open(day, time, rest_hours) == False
+
+
+    ## Wednesday
+    #lower bound (Wed 11:01 am)
+    user_date = '2022-01-26T110100'
+    day = convert_to_day(user_date)
+    time = convert_to_time(user_date)
+    assert is_open(day, time, rest_hours) == True
+
+    #beyond lower bound (Wed 10:59 am)
+    user_date = '2022-01-26T105900'
+    day = convert_to_day(user_date)
+    time = convert_to_time(user_date)
+    assert is_open(day, time, rest_hours) == False
+
+    #upper bound (Wed 11:59 am)
+    user_date = '2022-01-26T115900'
+    day = convert_to_day(user_date)
+    time = convert_to_time(user_date)
+    assert is_open(day, time, rest_hours) == True
+
+    #beyond upper bound (Wed 12:01 pm)
+    user_date = '2022-01-26T120100'
+    day = convert_to_day(user_date)
+    time = convert_to_time(user_date)
+    assert is_open(day, time, rest_hours) == False
+
+def test_two_days_two_times():
+    rest_hours = 'Mon 11 am - 10 pm / Sun 12 pm - 10 pm'
+
+    ## Monday
+    #lower bound (Mon 11:01 am)
+    user_date = '2022-01-24T110100'
+    day = convert_to_day(user_date)
+    time = convert_to_time(user_date)
+    assert is_open(day, time, rest_hours) == True
+
+    #beyond lower bound (Mon 10:59 am)
+    user_date = '2022-01-24T105900'
+    day = convert_to_day(user_date)
+    time = convert_to_time(user_date)
+    assert is_open(day, time, rest_hours) == False
+
+    #upper bound (Mon 9:59 pm)
+    user_date = '2022-01-24T215900'
+    day = convert_to_day(user_date)
+    time = convert_to_time(user_date)
+    assert is_open(day, time, rest_hours) == True
+
+    #beyond upper bound (Mon 10:01 pm)
+    user_date = '2022-01-24T220100'
+    day = convert_to_day(user_date)
+    time = convert_to_time(user_date)
+    assert is_open(day, time, rest_hours) == False
+
+
+    ## Sunday
+    #lower bound (Sun 12:01 pm)
+    user_date = '2022-01-23T120100'
+    day = convert_to_day(user_date)
+    time = convert_to_time(user_date)
+    assert is_open(day, time, rest_hours) == True
+
+    #beyond lower bound (Sun 11:59 am)
+    user_date = '2022-01-23T115900'
+    day = convert_to_day(user_date)
+    time = convert_to_time(user_date)
+    assert is_open(day, time, rest_hours) == False
+
+    #upper bound (Sun 9:59 pm)
+    user_date = '2022-01-23T215900'
+    day = convert_to_day(user_date)
+    time = convert_to_time(user_date)
+    assert is_open(day, time, rest_hours) == True
+
+    #beyond upper bound (Sun 10:01 pm)
+    user_date = '2022-01-23T220100'
+    day = convert_to_day(user_date)
+    time = convert_to_time(user_date)
+    assert is_open(day, time, rest_hours) == False
+
+def test_midnight_start():
+    rest_hours = 'Mon 12 am - 4 am'
+
+    #lower bound (Mon 12:01 am)
+    user_date = '2022-01-24T000100'
+    day = convert_to_day(user_date)
+    time = convert_to_time(user_date)
+    assert is_open(day, time, rest_hours) == True
+
+    #beyond lower bound (Sun 11:59 pm)
+    user_date = '2022-01-23T235900'
+    day = convert_to_day(user_date)
+    time = convert_to_time(user_date)
+    assert is_open(day, time, rest_hours) == False
+
+    #upper bound (Mon 3:59 am)
+    user_date = '2022-01-24T035900'
+    day = convert_to_day(user_date)
+    time = convert_to_time(user_date)
+    assert is_open(day, time, rest_hours) == True
+
+    #beyond upper bound (Mon 4:01 am)
+    user_date = '2022-01-24T040100'
+    day = convert_to_day(user_date)
+    time = convert_to_time(user_date)
+    assert is_open(day, time, rest_hours) == False
+
+def test_all_days_past_midnight():
+    rest_hours = 'Mon 11 am - 2 am / Sun 12 pm - 10:58 am'
+
+    ## Monday/Tuesday
+    #lower bound (Mon 11:01 am)
+    user_date = '2022-01-24T110100'
+    day = convert_to_day(user_date)
+    time = convert_to_time(user_date)
+    assert is_open(day, time, rest_hours) == True
+
+    #beyond lower bound (Mon 10:59 am)
+    user_date = '2022-01-24T105900'
+    day = convert_to_day(user_date)
+    time = convert_to_time(user_date)
+    assert is_open(day, time, rest_hours) == False
+
+    #upper bound (Tues 1:59 am)
+    user_date = '2022-01-25T015900'
+    day = convert_to_day(user_date)
+    time = convert_to_time(user_date)
+    assert is_open(day, time, rest_hours) == True
+
+    #beyond upper bound (Tues 2:01 am)
+    user_date = '2022-01-25T020100'
+    day = convert_to_day(user_date)
+    time = convert_to_time(user_date)
+    assert is_open(day, time, rest_hours) == False
+
+
+    ## Sunday/Monday
+    #lower bound (Sun 12:01 pm)
+    user_date = '2022-01-23T120100'
+    day = convert_to_day(user_date)
+    time = convert_to_time(user_date)
+    assert is_open(day, time, rest_hours) == True
+
+    #beyond lower bound (Sun 11:59 am)
+    user_date = '2022-01-23T115900'
+    day = convert_to_day(user_date)
+    time = convert_to_time(user_date)
+    assert is_open(day, time, rest_hours) == False
+
+    #upper bound (Mon 10:57 am)
+    user_date = '2022-01-24T105700'
+    day = convert_to_day(user_date)
+    time = convert_to_time(user_date)
+    assert is_open(day, time, rest_hours) == True
+
+    #beyond upper bound (Mon 10:59:01 am)
+    user_date = '2022-01-24T105900'
+    day = convert_to_day(user_date)
+    time = convert_to_time(user_date)
+    assert is_open(day, time, rest_hours) == False
